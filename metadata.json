@@ -1,0 +1,8 @@
+{
+  "name": "Dexter - PC Voice Assistant & Task Automation Studio",
+  "description": "Personal AI desktop assistant to control your PC and automate routine tasks with voice commands, custom scripts, and workflow macros.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
