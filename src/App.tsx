@@ -1,18 +1,39 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Navbar, NavTab } from './components/Navbar';
 import { VoiceController } from './components/VoiceController';
 import { CommandCenter } from './components/CommandCenter';
 import { RoutineStudio } from './components/RoutineStudio';
 import { ScriptStudio } from './components/ScriptStudio';
 import { ExecutionConsole } from './components/ExecutionConsole';
+import { LiveVoiceSession } from './components/LiveVoiceSession';
+import { GroundingStudio } from './components/GroundingStudio';
 import { DesktopCompanionGuide } from './components/DesktopCompanionGuide';
+import { GeminiChatbot } from './components/GeminiChatbot';
+import { ThreeScene } from './components/ThreeScene';
+import { BioscienceHub } from './components/BioscienceHub';
+import { DexterOrb } from './components/DexterOrb';
 import {
   processDexterCommand,
   executeActionOnLocalPc,
   speakResponse,
   stopSpeaking,
   checkLocalBridge,
+  checkOllamaStatus,
 } from './services/dexterApi';
+import {
+  auth,
+  signInWithGoogle,
+  signOutUser,
+  testFirestoreConnection,
+  saveRoutineToFirestore,
+  deleteRoutineFromFirestore,
+  saveScriptToFirestore,
+  deleteScriptFromFirestore,
+  saveLogToFirestore,
+  db,
+} from './services/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import {
   DexterCommandResponse,
   DexterAction,
@@ -21,6 +42,8 @@ import {
   AutomationScript,
   LocalBridgeStatus,
   GeneratedScript,
+  AiEngineMode,
+  OllamaStatus,
 } from './types/dexter';
 import { INITIAL_ROUTINES } from './data/defaultRoutines';
 import { INITIAL_SCRIPTS } from './data/defaultScripts';
@@ -31,13 +54,30 @@ export default function App() {
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [isFloatingDocked, setIsFloatingDocked] = useState(false);
+  const [engineMode, setEngineMode] = useState<AiEngineMode>('auto');
+  const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus>({
+    online: false,
+    url: 'http://127.0.0.1:11434',
+    models: [],
+    activeModel: 'qwen2.5',
+    hasQwen: false,
+    lastChecked: null,
+  });
+  const voiceTriggerRef = useRef<(() => void) | null>(null);
   const [lastResponse, setLastResponse] = useState<DexterCommandResponse | null>(null);
+
+  // Firebase state
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [firestoreConnected, setFirestoreConnected] = useState<boolean>(false);
 
   const [bridgeStatus, setBridgeStatus] = useState<LocalBridgeStatus>({
     online: false,
     platform: 'Virtual Desktop Host',
     assistant: 'Dexter',
-    version: '2.5.0',
+    version: '2.6.0',
     voiceInput: true,
     tts: true,
     lastChecked: null,
@@ -61,14 +101,100 @@ export default function App() {
     {
       id: 'log-init',
       timestamp: new Date().toLocaleTimeString(),
-      command: 'Dexter System Initialize',
+      command: 'Dexter AI Suite Boot',
       origin: 'text',
       intent: 'SYSTEM_BOOT',
       status: 'success',
-      spokenResponse: 'Dexter online. AI Assistant initialized and standing by.',
-      outputDetails: '[Dexter Core v2.5] Loaded 4 automation routines and 4 system scripts. Voice recognition listening channel active.',
+      spokenResponse: 'Dexter online. Grounding, voice recognition, and Firestore persistence active.',
+      outputDetails: '[Dexter Core v2.6] Loaded intelligence models: gemini-3.8-flash, gemini-3.8-live, gemini-3.5-transcribe, Google Search & Maps Grounding.',
     },
   ]);
+
+  // Test Firestore on boot (Pillar constraint)
+  useEffect(() => {
+    testFirestoreConnection().then((connected) => {
+      setFirestoreConnected(connected);
+    });
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Listen to Firestore routines & scripts when user is authenticated
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Listen to user routines
+    const routinesQuery = query(collection(db, 'users', currentUser.uid, 'routines'));
+    const unsubRoutines = onSnapshot(
+      routinesQuery,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const remoteRoutines: AutomationRoutine[] = snapshot.docs.map((docSnap) => {
+            const d = docSnap.data();
+            let steps = [];
+            try {
+              steps = JSON.parse(d.stepsJson || '[]');
+            } catch {
+              steps = [];
+            }
+            return {
+              id: d.id,
+              name: d.name,
+              description: d.description || '',
+              triggerVoicePhrases: (d.triggerVoicePhrases || '').split(',').filter(Boolean),
+              category: d.category || 'productivity',
+              steps,
+              active: d.active ?? true,
+              runCount: d.runCount || 0,
+              lastRun: d.lastRun,
+            };
+          });
+          setRoutines(remoteRoutines);
+        }
+      },
+      (error) => {
+        console.warn('Routines snapshot sync notice:', error.message);
+      }
+    );
+
+    // Listen to user scripts
+    const scriptsQuery = query(collection(db, 'users', currentUser.uid, 'scripts'));
+    const unsubScripts = onSnapshot(
+      scriptsQuery,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const remoteScripts: AutomationScript[] = snapshot.docs.map((docSnap) => {
+            const d = docSnap.data();
+            return {
+              id: d.id,
+              title: d.title,
+              description: d.description || '',
+              language: d.language || 'python',
+              category: d.category || 'system',
+              code: d.code,
+              dependencies: (d.dependencies || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+              safetyNotes: d.safetyNotes || '',
+              steps: d.steps || [],
+              dateUpdated: d.updatedAt || 'Recently',
+            };
+          });
+          setScripts(remoteScripts);
+        }
+      },
+      (error) => {
+        console.warn('Scripts snapshot sync notice:', error.message);
+      }
+    );
+
+    return () => {
+      unsubRoutines();
+      unsubScripts();
+    };
+  }, [currentUser]);
 
   // Check PC Bridge connection periodically
   const refreshBridge = useCallback(async () => {
@@ -76,11 +202,38 @@ export default function App() {
     setBridgeStatus(status);
   }, []);
 
+  // Check Ollama Local AI Engine periodically
+  const refreshOllama = useCallback(async () => {
+    try {
+      const status = await checkOllamaStatus();
+      setOllamaStatus(status);
+    } catch {
+      setOllamaStatus((prev) => ({ ...prev, online: false }));
+    }
+  }, []);
+
   useEffect(() => {
     refreshBridge();
-    const interval = setInterval(refreshBridge, 12000);
+    refreshOllama();
+    const interval = setInterval(() => {
+      refreshBridge();
+      refreshOllama();
+    }, 12000);
     return () => clearInterval(interval);
-  }, [refreshBridge]);
+  }, [refreshBridge, refreshOllama]);
+
+  // Google Sign-In Handler
+  const handleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch {
+      // Ignored: benign cancellation or popup suppression is handled in signInWithGoogle
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOutUser();
+  };
 
   // Main Command Dispatcher
   const handleExecuteCommand = async (
@@ -116,7 +269,10 @@ export default function App() {
     setLogs((prev) => [newLog, ...prev]);
 
     try {
-      const response = await processDexterCommand(command, osType);
+      const response = await processDexterCommand(command, osType, {
+        engineMode,
+        ollamaModel: ollamaStatus.activeModel || undefined,
+      });
       setLastResponse(response);
 
       // Check if dangerous / file overwrite action requires confirmation
@@ -130,20 +286,19 @@ export default function App() {
           logId,
         });
 
-        // Update log to pending confirmation
-        setLogs((prev) =>
-          prev.map((l) =>
-            l.id === logId
-              ? {
-                  ...l,
-                  intent: response.intent,
-                  status: 'needs_confirmation',
-                  spokenResponse: response.spokenResponse,
-                  action: response.action,
-                }
-              : l
-          )
-        );
+        const pendingEntry: ExecutionLogEntry = {
+          ...newLog,
+          intent: response.intent,
+          status: 'needs_confirmation',
+          spokenResponse: response.spokenResponse,
+          action: response.action,
+        };
+
+        setLogs((prev) => prev.map((l) => (l.id === logId ? pendingEntry : l)));
+
+        if (currentUser) {
+          saveLogToFirestore(currentUser.uid, pendingEntry).catch(() => {});
+        }
 
         if (!voiceMuted) {
           speakResponse(
@@ -170,39 +325,38 @@ export default function App() {
         });
       }
 
-      // Update log
-      setLogs((prev) =>
-        prev.map((l) =>
-          l.id === logId
-            ? {
-                ...l,
-                intent: response.intent,
-                status: 'success',
-                spokenResponse: response.spokenResponse,
-                action: response.action,
-                outputDetails: executionResult.result,
-                durationMs,
-                scriptCode: response.scriptGenerated?.code,
-              }
-            : l
-        )
-      );
+      const completedLog: ExecutionLogEntry = {
+        ...newLog,
+        intent: response.intent,
+        status: 'success',
+        spokenResponse: response.spokenResponse,
+        action: response.action,
+        outputDetails: executionResult.result,
+        durationMs,
+        scriptCode: response.scriptGenerated?.code,
+      };
+
+      setLogs((prev) => prev.map((l) => (l.id === logId ? completedLog : l)));
+
+      if (currentUser) {
+        saveLogToFirestore(currentUser.uid, completedLog).catch(() => {});
+      }
     } catch (err: any) {
       console.error('Error running command:', err);
       const durationMs = Date.now() - startTime;
 
-      setLogs((prev) =>
-        prev.map((l) =>
-          l.id === logId
-            ? {
-                ...l,
-                status: 'failed',
-                outputDetails: `Error: ${err.message || String(err)}`,
-                durationMs,
-              }
-            : l
-        )
-      );
+      const failedLog: ExecutionLogEntry = {
+        ...newLog,
+        status: 'failed',
+        outputDetails: `Error: ${err.message || String(err)}`,
+        durationMs,
+      };
+
+      setLogs((prev) => prev.map((l) => (l.id === logId ? failedLog : l)));
+
+      if (currentUser) {
+        saveLogToFirestore(currentUser.uid, failedLog).catch(() => {});
+      }
 
       if (!voiceMuted) {
         speakResponse('Sorry, I encountered an issue processing that command.', {
@@ -287,18 +441,16 @@ export default function App() {
     setActiveStepIndex(0);
 
     const logId = `log-routine-${Date.now()}`;
-    setLogs((prev) => [
-      {
-        id: logId,
-        timestamp: new Date().toLocaleTimeString(),
-        command: `Routine: ${routine.name}`,
-        origin: 'macro',
-        intent: 'ROUTINE_EXECUTION',
-        status: 'executing',
-        spokenResponse: `Executing routine: ${routine.name}`,
-      },
-      ...prev,
-    ]);
+    const startLog: ExecutionLogEntry = {
+      id: logId,
+      timestamp: new Date().toLocaleTimeString(),
+      command: `Routine: ${routine.name}`,
+      origin: 'macro',
+      intent: 'ROUTINE_EXECUTION',
+      status: 'executing',
+      spokenResponse: `Executing routine: ${routine.name}`,
+    };
+    setLogs((prev) => [startLog, ...prev]);
 
     if (!voiceMuted) {
       speakResponse(`Running ${routine.name}.`, {
@@ -326,13 +478,19 @@ export default function App() {
       }
 
       // Mark routine completed
+      const updatedRoutine = {
+        ...routine,
+        runCount: routine.runCount + 1,
+        lastRun: 'Just now',
+      };
+
       setRoutines((prev) =>
-        prev.map((r) =>
-          r.id === routine.id
-            ? { ...r, runCount: r.runCount + 1, lastRun: 'Just now' }
-            : r
-        )
+        prev.map((r) => (r.id === routine.id ? updatedRoutine : r))
       );
+
+      if (currentUser) {
+        saveRoutineToFirestore(currentUser.uid, updatedRoutine).catch(() => {});
+      }
 
       setLogs((prev) =>
         prev.map((l) =>
@@ -371,7 +529,22 @@ export default function App() {
     }
   };
 
-  // Handle Script Execution
+  // Routine Create / Delete with Firestore persistence
+  const handleCreateRoutine = (newR: AutomationRoutine) => {
+    setRoutines((prev) => [newR, ...prev]);
+    if (currentUser) {
+      saveRoutineToFirestore(currentUser.uid, newR).catch(() => {});
+    }
+  };
+
+  const handleDeleteRoutine = (id: string) => {
+    setRoutines((prev) => prev.filter((r) => r.id !== id));
+    if (currentUser) {
+      deleteRoutineFromFirestore(currentUser.uid, id).catch(() => {});
+    }
+  };
+
+  // Script Execute / Save with Firestore persistence
   const handleExecuteScript = async (script: AutomationScript | GeneratedScript) => {
     const title = 'title' in script && script.title ? script.title : 'Custom Automation Script';
     const logId = `log-script-${Date.now()}`;
@@ -429,7 +602,7 @@ export default function App() {
     }
   };
 
-  // Keyboard shortcut: Spacebar (when not typing) can trigger voice recognition or command focus
+  // Keyboard shortcut: Escape to close modals or stop speaking
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -443,8 +616,8 @@ export default function App() {
   }, [showAgentModal]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500/20 selection:text-emerald-300">
-      {/* Top Navigation */}
+    <div className="min-h-screen bg-[#0a0304] text-[#fce7e7] flex flex-col selection:bg-red-900/60 selection:text-red-100">
+      {/* Top Navigation with Firebase Auth */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -454,6 +627,10 @@ export default function App() {
         osType={osType}
         setOsType={setOsType}
         onOpenAgentModal={() => setShowAgentModal(true)}
+        currentUser={currentUser}
+        onSignIn={handleSignIn}
+        onSignOut={handleSignOut}
+        firestoreConnected={firestoreConnected}
       />
 
       {/* Main Container */}
@@ -464,18 +641,64 @@ export default function App() {
           isProcessing={isProcessing}
           isSpeaking={isSpeaking}
           voiceMuted={voiceMuted}
+          onListeningChange={setIsListening}
+          onTranscriptChange={setTranscript}
+          triggerToggleRef={voiceTriggerRef}
         />
 
         {/* Tab Content Views */}
         {activeTab === 'command' && (
-          <CommandCenter
-            onExecuteCommand={(cmd) => handleExecuteCommand(cmd, 'text')}
-            isProcessing={isProcessing}
-            lastResponse={lastResponse}
-            bridgeStatus={bridgeStatus}
-            onOpenAgentModal={() => setShowAgentModal(true)}
-            pendingConfirmation={pendingConfirmation}
-            onConfirmPending={handleConfirmPending}
+          <div className="space-y-6">
+            {!isFloatingDocked && (
+              <DexterOrb
+                isListening={isListening}
+                isProcessing={isProcessing}
+                isSpeaking={isSpeaking}
+                voiceMuted={voiceMuted}
+                onToggleListen={() => voiceTriggerRef.current?.()}
+                onToggleMute={() => setVoiceMuted((prev) => !prev)}
+                onExecuteCommand={(cmd) => handleExecuteCommand(cmd, 'voice')}
+                engineMode={engineMode}
+                onSelectEngineMode={setEngineMode}
+                ollamaStatus={ollamaStatus}
+                onRefreshOllama={refreshOllama}
+                transcript={transcript}
+                lastSpokenText={lastResponse?.spokenResponse}
+                isFloatingDocked={isFloatingDocked}
+                onToggleFloatingDock={() => setIsFloatingDocked(!isFloatingDocked)}
+              />
+            )}
+
+            <CommandCenter
+              onExecuteCommand={(cmd) => handleExecuteCommand(cmd, 'text')}
+              isProcessing={isProcessing}
+              lastResponse={lastResponse}
+              bridgeStatus={bridgeStatus}
+              onOpenAgentModal={() => setShowAgentModal(true)}
+              pendingConfirmation={pendingConfirmation}
+              onConfirmPending={handleConfirmPending}
+            />
+          </div>
+        )}
+
+        {activeTab === 'chatbot' && <GeminiChatbot />}
+
+        {activeTab === 'three3d' && (
+          <ThreeScene isSpeaking={isSpeaking} isProcessing={isProcessing} />
+        )}
+
+        {activeTab === 'bioscience' && (
+          <BioscienceHub onOpen3DView={() => setActiveTab('three3d')} />
+        )}
+
+        {activeTab === 'live' && (
+          <LiveVoiceSession voiceMuted={voiceMuted} />
+        )}
+
+        {activeTab === 'grounding' && (
+          <GroundingStudio
+            onSendToDexterCommand={(cmd) => handleExecuteCommand(cmd, 'text')}
+            userId={currentUser?.uid}
           />
         )}
 
@@ -483,8 +706,8 @@ export default function App() {
           <RoutineStudio
             routines={routines}
             onRunRoutine={handleRunRoutine}
-            onCreateRoutine={(newR) => setRoutines((prev) => [newR, ...prev])}
-            onDeleteRoutine={(id) => setRoutines((prev) => prev.filter((r) => r.id !== id))}
+            onCreateRoutine={handleCreateRoutine}
+            onDeleteRoutine={handleDeleteRoutine}
             runningRoutineId={runningRoutineId}
             activeStepIndex={activeStepIndex}
           />
@@ -505,7 +728,38 @@ export default function App() {
             onRerunCommand={(cmd) => handleExecuteCommand(cmd, 'text')}
           />
         )}
+
+        {activeTab === 'agent' && (
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur shadow-xl">
+            <DesktopCompanionGuide
+              bridgeStatus={bridgeStatus}
+              onRefreshBridge={refreshBridge}
+              onClose={() => setActiveTab('command')}
+            />
+          </div>
+        )}
       </main>
+
+      {/* Floating Desktop Orb (Docked mode visible across all views) */}
+      {isFloatingDocked && (
+        <DexterOrb
+          isListening={isListening}
+          isProcessing={isProcessing}
+          isSpeaking={isSpeaking}
+          voiceMuted={voiceMuted}
+          onToggleListen={() => voiceTriggerRef.current?.()}
+          onToggleMute={() => setVoiceMuted((prev) => !prev)}
+          onExecuteCommand={(cmd) => handleExecuteCommand(cmd, 'voice')}
+          engineMode={engineMode}
+          onSelectEngineMode={setEngineMode}
+          ollamaStatus={ollamaStatus}
+          onRefreshOllama={refreshOllama}
+          transcript={transcript}
+          lastSpokenText={lastResponse?.spokenResponse}
+          isFloatingDocked={isFloatingDocked}
+          onToggleFloatingDock={() => setIsFloatingDocked(false)}
+        />
+      )}
 
       {/* Modal: Desktop Companion Setup Guide */}
       {showAgentModal && (
@@ -521,8 +775,8 @@ export default function App() {
       )}
 
       {/* Subtle Footer */}
-      <footer className="border-t border-slate-900 py-4 text-center text-xs text-slate-400">
-        <p>Dexter PC Voice Assistant & Automation Engine · Connected to Gemini 3.8 Flash</p>
+      <footer className="border-t border-red-950/80 py-4 text-center text-xs text-red-400/60 font-mono">
+        <p>Dexter PC Voice Assistant & Task Automation Studio · Mark VII J.A.R.V.I.S. Core</p>
       </footer>
     </div>
   );

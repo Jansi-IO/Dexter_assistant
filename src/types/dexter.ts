@@ -98,3 +98,17 @@ export interface LocalBridgeStatus {
   lastChecked: number | null;
   error?: string;
 }
+
+export type AiEngineMode = 'auto' | 'gemini' | 'qwen_ollama';
+
+export interface OllamaStatus {
+  online: boolean;
+  url: string;
+  models: string[];
+  activeModel: string;
+  hasQwen: boolean;
+  lastChecked: number | null;
+  latencyMs?: number;
+  error?: string;
+}
+

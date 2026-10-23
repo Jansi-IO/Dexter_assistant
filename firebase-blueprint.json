@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User configuration and preferences for Dexter",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User unique identifier" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "photoURL": { "type": "string", "description": "Profile avatar URL" },
+        "osType": { "type": "string", "description": "Target PC operating system (windows, mac, linux)" },
+        "voiceMuted": { "type": "boolean", "description": "Whether voice feedback is muted" },
+        "voiceName": { "type": "string", "description": "Selected voice persona" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Routine": {
+      "title": "Routine",
+      "description": "Custom automation workflow chained together",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Routine ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "name": { "type": "string", "description": "Routine title" },
+        "description": { "type": "string", "description": "Routine description" },
+        "triggerVoicePhrases": { "type": "string", "description": "Comma-separated voice trigger phrases" },
+        "category": { "type": "string", "description": "Routine category" },
+        "stepsJson": { "type": "string", "description": "JSON serialized steps array" },
+        "active": { "type": "boolean", "description": "Whether routine is active" },
+        "runCount": { "type": "number", "description": "Number of times executed" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "name", "stepsJson"]
+    },
+    "Script": {
+      "title": "Script",
+      "description": "Custom executable PC automation script",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Script ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "title": { "type": "string", "description": "Script name" },
+        "description": { "type": "string", "description": "Script explanation" },
+        "language": { "type": "string", "description": "Script language" },
+        "code": { "type": "string", "description": "Executable code" },
+        "dependencies": { "type": "string", "description": "Dependencies description" },
+        "safetyNotes": { "type": "string", "description": "Safety precautions" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "title", "language", "code"]
+    },
+    "ExecutionLog": {
+      "title": "ExecutionLog",
+      "description": "Audit record of voice and PC executions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Log entry ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "timestamp": { "type": "string", "description": "Display timestamp" },
+        "command": { "type": "string", "description": "Executed command" },
+        "origin": { "type": "string", "description": "Trigger origin (voice, text, macro)" },
+        "intent": { "type": "string", "description": "Command intent classification" },
+        "status": { "type": "string", "description": "Execution status" },
+        "spokenResponse": { "type": "string", "description": "Spoken feedback message" },
+        "outputDetails": { "type": "string", "description": "PC or script stdout" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "command", "status"]
+    },
+    "MediaRecord": {
+      "title": "MediaRecord",
+      "description": "Audio transcription, search/maps grounding, or media artifact",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Record ID" },
+        "userId": { "type": "string", "description": "Owner user ID" },
+        "type": { "type": "string", "description": "transcription, search_grounding, maps_grounding, live_audio, music" },
+        "title": { "type": "string", "description": "Media item title" },
+        "content": { "type": "string", "description": "Transcript text or grounding output" },
+        "metadataJson": { "type": "string", "description": "JSON metadata" },
+        "createdAt": { "type": "string", "description": "ISO timestamp" }
+      },
+      "required": ["id", "userId", "type", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document storing personal assistant settings"
+    },
+    "/users/{userId}/routines/{routineId}": {
+      "schema": "Routine",
+      "description": "User automation routines"
+    },
+    "/users/{userId}/scripts/{scriptId}": {
+      "schema": "Script",
+      "description": "User custom scripts"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "ExecutionLog",
+      "description": "User command execution logs"
+    },
+    "/users/{userId}/media/{mediaId}": {
+      "schema": "MediaRecord",
+      "description": "User media, audio transcriptions, and grounded results"
+    }
+  }
+}

@@ -1,15 +1,25 @@
-import { DexterCommandResponse, GeneratedScript, LocalBridgeStatus, DexterAction } from '../types/dexter';
+import {
+  DexterCommandResponse,
+  GeneratedScript,
+  LocalBridgeStatus,
+  DexterAction,
+  OllamaStatus,
+  AiEngineMode,
+} from '../types/dexter';
 
 const LOCAL_BRIDGE_URL = 'http://127.0.0.1:8765';
+const OLLAMA_DEFAULT_URL = 'http://127.0.0.1:11434';
 
 export async function processDexterCommand(
   command: string,
-  osType: string = 'windows'
+  osType: string = 'windows',
+  options: { engineMode?: AiEngineMode; ollamaModel?: string } = {}
 ): Promise<DexterCommandResponse> {
+  const { engineMode = 'auto', ollamaModel } = options;
   const response = await fetch('/api/dexter/process', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ command, osType }),
+    body: JSON.stringify({ command, osType, engineMode, ollamaModel }),
   });
 
   if (!response.ok) {
@@ -18,6 +28,55 @@ export async function processDexterCommand(
   }
 
   return response.json();
+}
+
+export async function checkOllamaStatus(): Promise<OllamaStatus> {
+  try {
+    const res = await fetch('/api/dexter/ollama-status', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // ignore
+  }
+
+  // Fallback direct probe if server-side proxy failed
+  try {
+    const start = Date.now();
+    const directRes = await fetch(`${OLLAMA_DEFAULT_URL}/api/tags`, {
+      method: 'GET',
+    });
+    if (directRes.ok) {
+      const data = await directRes.json();
+      const models = (data.models || []).map((m: any) => m.name);
+      const hasQwen = models.some((m: string) => m.toLowerCase().includes('qwen'));
+      const activeModel = models.find((m: string) => m.toLowerCase().includes('qwen')) || models[0] || 'qwen2.5:latest';
+      return {
+        online: true,
+        url: OLLAMA_DEFAULT_URL,
+        models,
+        activeModel,
+        hasQwen,
+        lastChecked: Date.now(),
+        latencyMs: Date.now() - start,
+      };
+    }
+  } catch {
+    // Ollama offline
+  }
+
+  return {
+    online: false,
+    url: OLLAMA_DEFAULT_URL,
+    models: [],
+    activeModel: 'qwen2.5',
+    hasQwen: false,
+    lastChecked: Date.now(),
+    error: 'Ollama is offline or unreachable at 127.0.0.1:11434',
+  };
 }
 
 export async function generateAutomationScript(
@@ -172,19 +231,36 @@ export async function speakResponse(
     }
   }
 
-  // Fallback to browser SpeechSynthesis
+  // Fallback to browser SpeechSynthesis with JARVIS British voice profile
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 0.95;
+    // JARVIS signature cadence: measured, polite, composed
+    utterance.rate = 0.98;
+    utterance.pitch = 0.93;
 
-    // Pick best English voice if available
+    // Pick British English voice to match Iron Man JARVIS (Paul Bettany)
     const voices = window.speechSynthesis.getVoices();
-    const naturalVoice = voices.find(
-      (v) => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('David'))
-    );
-    if (naturalVoice) utterance.voice = naturalVoice;
+    const jarvisVoice =
+      voices.find(
+        (v) =>
+          v.lang.toLowerCase().includes('en-gb') ||
+          v.lang.toLowerCase().includes('en_gb') ||
+          v.name.toLowerCase().includes('uk english') ||
+          v.name.toLowerCase().includes('daniel') ||
+          v.name.toLowerCase().includes('george') ||
+          v.name.toLowerCase().includes('oliver') ||
+          v.name.toLowerCase().includes('arthur')
+      ) ||
+      voices.find(
+        (v) =>
+          v.lang.startsWith('en') &&
+          (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('David'))
+      );
+
+    if (jarvisVoice) {
+      utterance.voice = jarvisVoice;
+    }
 
     if (onStart) utterance.onstart = () => onStart();
     if (onEnd) utterance.onend = () => onEnd();
@@ -197,4 +273,128 @@ export function stopSpeaking(): void {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
+}
+
+// Google Search Grounding Client
+export async function searchWithGoogle(query: string): Promise<{ answer: string; groundingMetadata: any; sources: string[] }> {
+  const res = await fetch('/api/dexter/search-grounding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error('Search failed');
+  return res.json();
+}
+
+// Google Maps Grounding Client
+export async function lookupWithGoogleMaps(query: string): Promise<{ answer: string; groundingMetadata: any }> {
+  const res = await fetch('/api/dexter/maps-grounding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error('Maps lookup failed');
+  return res.json();
+}
+
+// Audio Transcription with gemini-3.5-transcribe
+export async function transcribeAudioWithGemini(audioBase64: string, mimeType = 'audio/webm'): Promise<{ transcript: string }> {
+  const res = await fetch('/api/dexter/transcribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ audioBase64, mimeType }),
+  });
+  if (!res.ok) throw new Error('Transcription failed');
+  return res.json();
+}
+
+// Live Voice Conversation with gemini-3.8-live
+export async function chatLiveConversation(message: string, history: Array<{ role: string; text: string }> = []): Promise<{ reply: string; audioBase64: string | null }> {
+  const res = await fetch('/api/dexter/live-conversation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  });
+  if (!res.ok) throw new Error('Live chat failed');
+  return res.json();
+}
+
+// Media Generation (Music, Video, Image)
+export async function generateMediaItem(payload: { mediaType: 'music' | 'video' | 'image'; prompt: string; duration?: string; aspectRatio?: string }): Promise<any> {
+  const res = await fetch('/api/dexter/generate-media', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Media generation failed');
+  return res.json();
+}
+
+// Multi-Turn Chatbot Client with Role and Model Routing
+export async function sendMultiTurnChat(payload: {
+  message: string;
+  history: Array<{ role: 'user' | 'model'; text: string }>;
+  role: 'pc_engineer' | 'bioscience_researcher' | 'workflow_architect' | 'general_assistant';
+  model: 'gemini-4-argon' | 'gemini-3.8-flash' | 'gemini-3.1-flash-lite';
+}): Promise<{ reply: string; modelUsed: string; role: string }> {
+  const res = await fetch('/api/dexter/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Chat request failed');
+  return res.json();
+}
+
+// Animate Images into Video with Veo 3 (veo-3.1-fast-generate-preview)
+export async function animateVideoVeo(payload: {
+  prompt: string;
+  imageBase64?: string;
+  aspectRatio: '16:9' | '9:16';
+}): Promise<any> {
+  const res = await fetch('/api/dexter/animate-video', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Video animation failed');
+  return res.json();
+}
+
+// Create or Edit Images with gemini-nano-banana-2.1
+export async function createOrEditImage(payload: {
+  prompt: string;
+  imageBase64?: string;
+  mode: 'create' | 'edit';
+}): Promise<any> {
+  const res = await fetch('/api/dexter/create-edit-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Image creation failed');
+  return res.json();
+}
+
+// Bioscience API Clients
+export async function fetchProteinData(id: string): Promise<any> {
+  const res = await fetch(`/api/science/protein/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('Protein not found');
+  return res.json();
+}
+
+export async function fetchCompoundData(query: string): Promise<any> {
+  const res = await fetch(`/api/science/compound/${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error('Compound not found');
+  return res.json();
+}
+
+export async function searchPubMedLiterature(query: string): Promise<any> {
+  const res = await fetch('/api/science/literature', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error('Literature query failed');
+  return res.json();
 }

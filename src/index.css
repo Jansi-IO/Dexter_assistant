@@ -3,6 +3,8 @@
 @layer base {
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #0a0304;
+    color: #fce7e7;
   }
   
   code, pre, kbd, .font-mono {
@@ -10,20 +12,20 @@
   }
 }
 
-/* Custom scrollbars */
+/* Custom dark red scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: #0d0405;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.7);
+  background: rgba(185, 28, 28, 0.45);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.5);
+  background: rgba(239, 68, 68, 0.8);
 }
 
 /* Voice pulse animations */
@@ -38,4 +40,82 @@
 
 .animate-voice-wave {
   animation: voice-wave 1.2s ease-in-out infinite;
+}
+
+/* Dark Red J.A.R.V.I.S. / Iron Man Core animations */
+@keyframes jarvis-core-pulse {
+  0%, 100% {
+    transform: scale(0.98);
+    filter: brightness(1) drop-shadow(0 0 25px rgba(239, 68, 68, 0.6));
+  }
+  50% {
+    transform: scale(1.05);
+    filter: brightness(1.3) drop-shadow(0 0 50px rgba(220, 38, 38, 0.95));
+  }
+}
+
+@keyframes jarvis-ripple {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.95);
+    opacity: 0;
+  }
+}
+
+@keyframes jarvis-reticle-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes jarvis-reticle-reverse {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes holographic-scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(1000%);
+  }
+}
+
+.animate-jarvis-core {
+  animation: jarvis-core-pulse 3s ease-in-out infinite;
+}
+
+.animate-jarvis-core-fast {
+  animation: jarvis-core-pulse 1.2s ease-in-out infinite;
+}
+
+.animate-jarvis-ripple {
+  animation: jarvis-ripple 2.2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.animate-jarvis-reticle {
+  animation: jarvis-reticle-spin 22s linear infinite;
+}
+
+.animate-jarvis-reticle-fast {
+  animation: jarvis-reticle-spin 8s linear infinite;
+}
+
+.animate-jarvis-reticle-reverse {
+  animation: jarvis-reticle-reverse 16s linear infinite;
+}
+
+.animate-scanline {
+  animation: holographic-scanline 8s linear infinite;
 }

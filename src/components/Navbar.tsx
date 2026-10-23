@@ -8,12 +8,30 @@ import {
   Volume2,
   VolumeX,
   Radio,
-  Download,
   Laptop,
+  Globe,
+  Sparkles,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  MessageSquare,
+  Box,
+  Dna,
 } from 'lucide-react';
 import { LocalBridgeStatus } from '../types/dexter';
+import { User } from 'firebase/auth';
 
-export type NavTab = 'command' | 'routines' | 'scripts' | 'logs' | 'agent';
+export type NavTab =
+  | 'command'
+  | 'chatbot'
+  | 'three3d'
+  | 'bioscience'
+  | 'live'
+  | 'grounding'
+  | 'routines'
+  | 'scripts'
+  | 'logs'
+  | 'agent';
 
 interface NavbarProps {
   activeTab: NavTab;
@@ -24,6 +42,10 @@ interface NavbarProps {
   osType: 'windows' | 'mac' | 'linux';
   setOsType: (os: 'windows' | 'mac' | 'linux') => void;
   onOpenAgentModal: () => void;
+  currentUser: User | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  firestoreConnected: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -35,96 +57,160 @@ export const Navbar: React.FC<NavbarProps> = ({
   osType,
   setOsType,
   onOpenAgentModal,
+  currentUser,
+  onSignIn,
+  onSignOut,
+  firestoreConnected,
 }) => {
   return (
-    <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
+    <header className="border-b border-red-950/80 bg-[#0a0304]/90 backdrop-blur sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         {/* Brand identity */}
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-slate-950 shadow-lg shadow-emerald-500/20">
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-700 to-red-950 text-white shadow-lg shadow-red-950/80 border border-red-500/40">
             <Terminal className="w-5 h-5 stroke-[2.5]" />
             <span
-              className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-950 ${
-                bridgeStatus.online ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+              className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#0a0304] ${
+                bridgeStatus.online ? 'bg-red-400 animate-pulse' : 'bg-amber-400'
               }`}
               title={bridgeStatus.online ? 'Local PC Agent Connected' : 'Virtual Sandbox Host'}
             />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-bold tracking-tight text-lg text-slate-100">DEXTER</span>
-              <span className="text-[11px] font-mono uppercase px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/60">
-                v2.5
+              <span className="font-bold tracking-tight text-lg text-red-100 font-mono">DEXTER</span>
+              <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-800/60">
+                MARK VII
               </span>
             </div>
-            <p className="text-xs text-slate-400 hidden sm:block">PC Voice Assistant & Task Automation</p>
+            <p className="text-xs text-red-300/70 hidden sm:block font-mono">Iron Man Voice Assistant & Automation</p>
           </div>
         </div>
 
         {/* Center navigation tabs */}
-        <nav className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800/80">
+        <nav className="flex items-center gap-1 bg-[#120406]/90 p-1 rounded-xl border border-red-950/90 overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab('command')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
               activeTab === 'command'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
             }`}
           >
-            <Cpu className="w-3.5 h-3.5" />
+            <Cpu className="w-3.5 h-3.5 text-red-400" />
             <span>Command Center</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('routines')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
-              activeTab === 'routines'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            onClick={() => setActiveTab('chatbot')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'chatbot'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
+            <MessageSquare className="w-3.5 h-3.5 text-rose-400" />
+            <span>Gemini Chat</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('three3d')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'three3d'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
+            }`}
+          >
+            <Box className="w-3.5 h-3.5 text-red-400" />
+            <span>3D Hologram</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('bioscience')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'bioscience'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
+            }`}
+          >
+            <Dna className="w-3.5 h-3.5 text-rose-400" />
+            <span>Bioscience</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('live')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'live'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5 text-red-400" />
+            <span>Live Voice</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('grounding')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'grounding'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Grounding & Media</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('routines')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
+              activeTab === 'routines'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-red-400" />
             <span>Routines</span>
           </button>
 
           <button
             onClick={() => setActiveTab('scripts')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
               activeTab === 'scripts'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
             }`}
           >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>Script Studio</span>
+            <Code2 className="w-3.5 h-3.5 text-red-400" />
+            <span>Scripts</span>
           </button>
 
           <button
             onClick={() => setActiveTab('logs')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex-shrink-0 ${
               activeTab === 'logs'
-                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                ? 'bg-red-950/80 text-red-200 border border-red-700/60 shadow-sm shadow-red-950/60 font-semibold'
+                : 'text-red-300/70 hover:text-red-100 hover:bg-red-950/40'
             }`}
           >
-            <ListRestart className="w-3.5 h-3.5" />
-            <span>Activity Log</span>
+            <ListRestart className="w-3.5 h-3.5 text-red-400" />
+            <span>Logs</span>
           </button>
         </nav>
 
         {/* Right action controls */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           {/* OS Selector */}
-          <div className="hidden md:flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg text-xs text-slate-400">
-            <Laptop className="w-3.5 h-3.5 text-slate-500" />
+          <div className="hidden lg:flex items-center gap-1 bg-[#120406] border border-red-950/90 px-2 py-1 rounded-lg text-xs text-red-300/80">
+            <Laptop className="w-3.5 h-3.5 text-red-400" />
             <select
               value={osType}
               onChange={(e) => setOsType(e.target.value as any)}
-              className="bg-transparent text-slate-300 text-xs focus:outline-none cursor-pointer"
+              className="bg-transparent text-red-200 text-xs focus:outline-none cursor-pointer"
             >
-              <option value="windows" className="bg-slate-900 text-slate-200">Windows</option>
-              <option value="mac" className="bg-slate-900 text-slate-200">macOS</option>
-              <option value="linux" className="bg-slate-900 text-slate-200">Linux</option>
+              <option value="windows" className="bg-[#120406] text-red-200">Windows</option>
+              <option value="mac" className="bg-[#120406] text-red-200">macOS</option>
+              <option value="linux" className="bg-[#120406] text-red-200">Linux</option>
             </select>
           </div>
 
@@ -133,12 +219,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={onOpenAgentModal}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
               bridgeStatus.online
-                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80 hover:bg-emerald-900/60'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-red-950/70 text-red-300 border-red-700/80 hover:bg-red-900/60'
+                : 'bg-[#120406] text-red-300/60 border-red-950 hover:text-red-200 hover:border-red-800'
             }`}
             title="Desktop Companion Agent Status"
           >
-            <Radio className={`w-3.5 h-3.5 ${bridgeStatus.online ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
+            <Radio className={`w-3.5 h-3.5 ${bridgeStatus.online ? 'text-red-400 animate-pulse' : 'text-amber-400'}`} />
             <span className="hidden sm:inline">
               {bridgeStatus.online ? 'PC Connected' : 'PC Agent'}
             </span>
@@ -149,13 +235,51 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => setVoiceMuted(!voiceMuted)}
             className={`p-2 rounded-lg border text-xs transition-colors ${
               voiceMuted
-                ? 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
-                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                ? 'bg-[#120406] border-red-950 text-red-500/60 hover:text-red-400'
+                : 'bg-red-950/50 border-red-700/50 text-red-300 hover:bg-red-900/50'
             }`}
             title={voiceMuted ? 'Voice audio muted' : 'Voice audio enabled'}
           >
             {voiceMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
+
+          {/* Google Firebase Auth */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 pl-1">
+              <div className="flex items-center gap-1.5 p-1 pr-2 bg-[#120406] border border-red-950 rounded-lg text-xs">
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.displayName || 'User'}
+                    className="w-5 h-5 rounded-full"
+                  />
+                ) : (
+                  <UserIcon className="w-4 h-4 text-red-400" />
+                )}
+                <span className="hidden md:inline font-medium text-red-200 max-w-[90px] truncate">
+                  {currentUser.displayName?.split(' ')[0] || 'User'}
+                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" title="Firestore Synced" />
+              </div>
+
+              <button
+                onClick={onSignOut}
+                className="p-1.5 text-red-400/80 hover:text-red-200 rounded-lg hover:bg-red-950/40 transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onSignIn}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white transition-all cursor-pointer shadow-sm shadow-red-950/60"
+              title="Sign in with Google to sync Firestore routines & scripts"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
